@@ -11,6 +11,7 @@ import {
   motion,
   useMotionValue,
   useReducedMotion,
+  useSpring,
   useTransform,
 } from 'motion/react'
 import cardFront from '../assets/card-front.svg'
@@ -82,6 +83,21 @@ const PRESS = {
   scaleDepth: 0.018,
   held: { type: 'spring' as const, visualDuration: 0.5, bounce: 0 },
   release: { type: 'spring' as const, visualDuration: 0.6, bounce: 0 },
+}
+
+/**
+ * Card tilt while it is out (degrees). At rest the low point slowly circles
+ * all four corners; on hover / touch the card tips toward the pointer so that
+ * end sinks a little further. Small numbers on purpose — felt, not seen.
+ */
+const TILT = {
+  idle: 1.4,
+  idlePeriod: 7,
+  held: 4.5,
+  perspective: 900,
+  /** Follows the pointer with a soft lag instead of snapping */
+  follow: { stiffness: 140, damping: 20, mass: 0.6 },
+  mix: { type: 'spring' as const, visualDuration: 0.55, bounce: 0 },
 }
 
 function lerp(a: number, b: number, t: number) {
@@ -163,6 +179,45 @@ export function BusinessCard() {
   /** 0 = resting flat, 1 = fully pressed (see PRESS) */
   const press = useMotionValue(0)
   const pressScale = useTransform(press, (p) => 1 - p * PRESS.scaleDepth)
+
+  /** Idle orbit angle (radians) — the low corner travels around the card */
+  const idlePhase = useMotionValue(0)
+  /** Pointer over the card, 0–1 on each axis, eased so the tilt glides */
+  const pointerX = useSpring(0.5, TILT.follow)
+  const pointerY = useSpring(0.5, TILT.follow)
+  /** 0 = idle orbit, 1 = tipped toward the pointer */
+  const holdMix = useMotionValue(0)
+  /** 0 while flying / docked so the tilt never fights the dock animation */
+  const tiltAmp = useMotionValue(0)
+  // rotateY(+) sinks the right edge, rotateX(−) sinks the bottom edge
+  const tiltX = useTransform(
+    [idlePhase, pointerY, holdMix, tiltAmp],
+    ([ph, py, m, a]: number[]) =>
+      a * ((1 - m) * TILT.idle * Math.sin(ph) - m * (py - 0.5) * 2 * TILT.held),
+  )
+  const tiltY = useTransform(
+    [idlePhase, pointerX, holdMix, tiltAmp],
+    ([ph, px, m, a]: number[]) =>
+      a * ((1 - m) * TILT.idle * Math.cos(ph) + m * (px - 0.5) * 2 * TILT.held),
+  )
+  /** Faint shadow pooling on the side being pressed */
+  const tiltShade = useTransform(
+    [pointerX, pointerY],
+    ([x, y]: number[]) =>
+      `radial-gradient(circle at ${x * 100}% ${y * 100}%, rgb(0 0 0 / 13%), transparent 62%)`,
+  )
+  const tiltShadeOpacity = useTransform(
+    [holdMix, tiltAmp],
+    ([m, a]: number[]) => m * a,
+  )
+
+  /** Aim the tilt at a pointer position over the open card */
+  const aimTilt = (clientX: number, clientY: number) => {
+    const r = focusFootprintRef.current?.getBoundingClientRect()
+    if (!r || r.width < 1) return
+    pointerX.set(clamp01((clientX - r.left) / r.width))
+    pointerY.set(clamp01((clientY - r.top) / r.height))
+  }
   /** Last time a swipe began or ended — used to swallow the trailing click */
   const lastSwipeAt = useRef(0)
   /** Card progress (0 docked → 1 out) when the current close scrub began */
@@ -284,6 +339,28 @@ export function BusinessCard() {
   useEffect(() => {
     if (!interactive) setHeld(false)
   }, [interactive])
+
+  // Tilt: fade in once the card settles, orbit the corners, blend to the pointer
+  useEffect(() => {
+    const on = interactive && !reduceMotion
+    const amp = animate(tiltAmp, on ? 1 : 0, { duration: on ? 0.6 : 0.25, ease: 'easeOut' })
+    if (!on) return () => amp.stop()
+    const from = idlePhase.get()
+    const orbit = animate(idlePhase, [from, from + Math.PI * 2], {
+      duration: TILT.idlePeriod,
+      ease: 'linear',
+      repeat: Infinity,
+    })
+    return () => {
+      amp.stop()
+      orbit.stop()
+    }
+  }, [interactive, reduceMotion, tiltAmp, idlePhase])
+
+  useEffect(() => {
+    const c = animate(holdMix, held ? 1 : 0, TILT.mix)
+    return () => c.stop()
+  }, [held, holdMix])
 
   const finishClose = useCallback(() => {
     flyAnimRef.current?.stop()
@@ -653,7 +730,7 @@ export function BusinessCard() {
       if (pullKind.current) return
       if (e.pointerType === 'mouse' && e.button !== 0) return
       // The profile photo overlay owns the screen while it is open
-      if (document.querySelector('.profile-overlay')) return
+      if (document.querySelector('.profile-overlay.is-open')) return
       tracking = true
       startX = e.clientX
       startY = e.clientY
@@ -901,8 +978,11 @@ export function BusinessCard() {
     }
     pressing.current = true
     didPull.current = false
-    // Finger on the card itself (not the grab padding) → press it in
-    if (focusFootprintRef.current?.contains(e.target as Node)) setHeld(true)
+    // Finger on the card itself (not the grab padding) → press that spot in
+    if (focusFootprintRef.current?.contains(e.target as Node)) {
+      aimTilt(e.clientX, e.clientY)
+      setHeld(true)
+    }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
@@ -912,6 +992,7 @@ export function BusinessCard() {
       updateCloseScrub(e.clientY)
       return
     }
+    if (held) aimTilt(e.clientX, e.clientY)
     const dx = e.clientX - pointerStart.current.x
     const dy = e.clientY - pointerStart.current.y
     if (dy > AXIS_LOCK && dy > Math.abs(dx) * 0.85) {
@@ -1112,7 +1193,15 @@ export function BusinessCard() {
               onPointerUp={onCardPointerUp}
               onPointerCancel={onCardPointerUp}
             >
-              <motion.div className="card-tilt" style={{ scale: pressScale }}>
+              <motion.div
+                className="card-tilt"
+                style={{
+                  scale: pressScale,
+                  rotateX: tiltX,
+                  rotateY: tiltY,
+                  transformPerspective: TILT.perspective,
+                }}
+              >
                 <motion.div
                   ref={focusFootprintRef}
                   className={`card-footprint${flying ? ' is-flying' : ''}`}
@@ -1123,9 +1212,9 @@ export function BusinessCard() {
                   // Real hover only: the card flying in under a resting cursor
                   // fires pointerenter without the user doing anything
                   onPointerMove={(e) => {
-                    if (e.pointerType === 'mouse' && interactive && !held) {
-                      setHeld(true)
-                    }
+                    if (e.pointerType !== 'mouse' || !interactive) return
+                    aimTilt(e.clientX, e.clientY)
+                    if (!held) setHeld(true)
                   }}
                   onPointerLeave={(e) => {
                     if (e.pointerType === 'mouse') setHeld(false)
@@ -1143,6 +1232,14 @@ export function BusinessCard() {
                       <motion.span
                         className="card-press-edge"
                         style={{ opacity: press }}
+                        aria-hidden="true"
+                      />
+                      <motion.span
+                        className="card-press-shade"
+                        style={{
+                          background: tiltShade,
+                          opacity: tiltShadeOpacity,
+                        }}
                         aria-hidden="true"
                       />
                     </div>

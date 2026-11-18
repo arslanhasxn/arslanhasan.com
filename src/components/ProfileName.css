@@ -71,7 +71,23 @@
   background: rgb(0 0 0 / 72%);
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
-  animation: profile-fade-in 400ms ease both;
+  /* Always mounted on touch devices; closed = invisible + untappable.
+     visibility flips only after the fade-out so close animates too. */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 240ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 240ms;
+}
+
+.profile-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
 }
 
 .profile-overlay__stack {
@@ -83,7 +99,14 @@
     calc(var(--frame-width) - 2 * var(--pad)),
     calc(100vw - 2 * var(--pad))
   );
-  animation: profile-scale-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform: translateY(12px) scale(0.94);
+  transition: transform 240ms cubic-bezier(0.4, 0, 1, 1);
+  will-change: transform;
+}
+
+.profile-overlay.is-open .profile-overlay__stack {
+  transform: none;
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .profile-overlay__img {
@@ -93,7 +116,7 @@
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: 8px;
-  box-shadow: 0 20px 56px rgb(0 0 0 / 52%);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 48%);
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
@@ -130,26 +153,6 @@
   }
 }
 
-@keyframes profile-scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes profile-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .brand-shimmer {
     animation: none;
@@ -158,9 +161,15 @@
     color: var(--muted);
   }
 
-  .profile-float,
-  .profile-overlay,
-  .profile-overlay__stack {
+  .profile-float {
     animation: none;
+  }
+
+  .profile-overlay,
+  .profile-overlay.is-open,
+  .profile-overlay__stack,
+  .profile-overlay.is-open .profile-overlay__stack {
+    transition: none;
+    transform: none;
   }
 }

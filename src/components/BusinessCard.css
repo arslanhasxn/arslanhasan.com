@@ -209,6 +209,16 @@
   -webkit-user-drag: none;
 }
 
+/* Tilt shade: pools on the side the cursor / finger is pressing (JS-driven) */
+.card-press-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: multiply;
+}
+
 /* Press: four edges shade inward as the card is pressed (opacity driven by JS) */
 .card-press-edge {
   position: absolute;

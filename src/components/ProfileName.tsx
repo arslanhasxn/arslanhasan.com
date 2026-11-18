@@ -26,9 +26,12 @@ export function ProfileName() {
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const nameRef = useRef<HTMLHeadingElement>(null)
 
+  // Fetch + decode up front so neither the hover float nor the mobile overlay
+  // has to decode a 960×1280 image mid-animation
   useEffect(() => {
     const img = new Image()
     img.src = profilePicture
+    img.decode?.().catch(() => {})
   }, [])
 
   const showFloat = !coarse && hovering
@@ -92,13 +95,18 @@ export function ProfileName() {
           document.body,
         )}
 
-      {mobileOpen &&
+      {/* Touch devices: overlay stays mounted (image already decoded and
+          painted) and only toggles a class, so open and close are both a
+          pure GPU opacity/transform transition */}
+      {coarse &&
         createPortal(
           <div
-            className="profile-overlay"
+            className={`profile-overlay${mobileOpen ? ' is-open' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-label="Profile picture"
+            aria-hidden={!mobileOpen}
+            inert={!mobileOpen}
             onClick={() => setMobileOpen(false)}
           >
             <div
@@ -110,6 +118,8 @@ export function ProfileName() {
                 src={profilePicture}
                 alt="Arslan Hasan"
                 draggable={false}
+                decoding="sync"
+                fetchPriority="high"
               />
               <button
                 type="button"
