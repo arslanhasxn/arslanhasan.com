@@ -1,0 +1,271 @@
+.card-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: default;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card-label-wrap {
+  position: absolute;
+  left: var(--pad);
+  right: var(--pad);
+  /* Fixed above the default peek strip — does not follow hover/focus. */
+  bottom: calc(28px + var(--text-leading) + 0.5rem);
+  z-index: 28;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.card-label {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--text-size);
+  font-weight: var(--text-weight);
+  line-height: var(--text-leading);
+  letter-spacing: var(--text-tracking);
+  color: var(--label);
+  text-align: center;
+  user-select: none;
+  max-width: 100%;
+}
+
+/* Peek — hangs below fold; translateY lifts more into view on hover.
+   Frame overflow is visible so the strip can show past the container
+   (helps under Safari’s floating bar). Stays mounted for close handoff. */
+.card-slot.is-peek {
+  position: absolute;
+  left: var(--pad);
+  right: var(--pad);
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+  will-change: transform;
+  /* Only ease hover lift — not the post-dock handoff */
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-slot.is-peek.is-occluded {
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
+}
+
+.card-slot.is-peek .card-hit {
+  width: 100%;
+  cursor: pointer;
+  /* Modest pad around the peek strip; full pull-up zone is handled in JS
+     from just below COMPONENT LIBRARY downward */
+  padding: 2.5rem 1.5rem 2rem;
+  margin: -2.5rem -1.5rem -2rem;
+  box-sizing: content-box;
+}
+
+.card-slot.is-focus {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: visible;
+  padding: 0 max(1rem, env(safe-area-inset-left, 0px)) 0
+    max(1rem, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+
+.card-fly {
+  pointer-events: auto;
+  display: flex;
+  justify-content: center;
+  will-change: transform;
+  transform-origin: center center;
+}
+
+.card-hit {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card-slot.is-focus .card-hit {
+  width: auto;
+  cursor: grab;
+  /* Extra grab area around the card for pull-to-dock */
+  padding: 10rem 3rem 2.5rem;
+  margin: -10rem -3rem -2.5rem;
+  box-sizing: content-box;
+}
+
+.card-slot.is-focus .card-hit:active {
+  cursor: grabbing;
+}
+
+.card-tilt {
+  display: flex;
+  justify-content: center;
+  transform-style: preserve-3d;
+  transform-origin: center center;
+}
+
+.card-footprint {
+  position: relative;
+  flex-shrink: 0;
+  transform-style: preserve-3d;
+  transform-origin: center center;
+}
+
+.card-footprint--peek {
+  width: 100%;
+  aspect-ratio: 600 / 1060;
+}
+
+.card-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  perspective: 1200px;
+}
+
+.card-stage.is-live {
+  overflow: visible;
+  perspective: 2600px;
+  perspective-origin: 50% 45%;
+}
+
+.card-flip {
+  position: absolute;
+  inset: 0;
+}
+
+.card-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f4f4f2;
+  transform-origin: center center;
+  transition: box-shadow 0.35s ease;
+}
+
+.card-face.grain-gradient {
+  background: transparent;
+}
+
+.card-stage.is-live .card-face {
+  box-shadow:
+    0 10px 28px rgb(0 0 0 / 22%),
+    inset 0 0 0 1px rgb(0 0 0 / 6%);
+}
+
+.card-footprint.is-flying .card-face {
+  box-shadow: none;
+}
+
+/*
+  Docked front: landscape art rotated into the portrait peek slot.
+  Clear inset:0 (right/bottom) or the face stretches to the portrait box
+  before rotate — which flattens/squashes the art.
+*/
+.card-face--docked {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: calc(100% * 1060 / 600);
+  aspect-ratio: 1060 / 600;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  transform: translate(-50%, -50%) rotate(90deg);
+  box-shadow: none;
+}
+
+.card-face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Press: four edges shade inward as the card is pressed (opacity driven by JS) */
+.card-press-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 6%),
+    inset 0 0 14px 1px rgb(0 0 0 / 16%),
+    inset 0 0 40px 4px rgb(0 0 0 / 8%);
+}
+
+.card-wave {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 240% 100%;
+  animation: card-wave 2.2s linear infinite;
+  mix-blend-mode: soft-light;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 72%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 72%);
+}
+
+.card-wave--soft {
+  opacity: 0.35;
+  animation-duration: 3s;
+}
+
+@keyframes card-wave {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-slot.is-peek {
+    transition: none;
+  }
+
+  .card-wave {
+    display: none;
+  }
+
+  .card-face {
+    box-shadow: none;
+  }
+}
